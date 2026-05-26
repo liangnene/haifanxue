@@ -176,25 +176,26 @@ export function TranslatePanel({ userKey }: Props) {
       return;
     }
 
-    // 合并排版：同时整理译文段落 + 按译文结构重排原文
+    // 第一步：让 AI 只整理译文段落（不管原文）
     setProgress({ done: 0, total: 1 });
     setBusy(true);
+
+    const countParagraphs = (s: string) =>
+      s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).length;
+
+    let finalTranslation = accumulated;
+    let finalSource = source;
+
     const formatController = new AbortController();
     abortRef.current = formatController;
     let formatOut = "";
 
     await streamChat(
-      [
-        {
-          role: "user",
-          content: `===SOURCE===\n${source}\n\n===TRANSLATION===\n${accumulated}`,
-        },
-      ],
+      [{ role: "user", content: `===SOURCE===\n${source}\n\n===TRANSLATION===\n${accumulated}` }],
       "format",
       {
         onChunk: (c) => {
           formatOut += c;
-          // 流式更新：只把 ===TRANSLATION=== 部分实时显示到译文区
           const transMatch = formatOut.match(/===TRANSLATION===\n([\s\S]*?)(?:===SOURCE===|$)/);
           const liveTranslation = transMatch ? transMatch[1].trim() : "";
           if (liveTranslation) {
@@ -211,15 +212,59 @@ export function TranslatePanel({ userKey }: Props) {
       }
     );
 
+    const transMatch = formatOut.match(/===TRANSLATION===\n([\s\S]*?)(?:===SOURCE===|$)/);
+    const srcMatch = formatOut.match(/===SOURCE===\n([\s\S]*?)$/);
+    if (transMatch) finalTranslation = transMatch[1].trim();
+    if (srcMatch) finalSource = srcMatch[1].trim();
+
+    // 第二步：以译文段数为准，让 AI 单独把原文切成相同段数
+    const targetCount = countParagraphs(finalTranslation);
+    const currentCount = countParagraphs(finalSource);
+
+    if (targetCount > 1 && currentCount !== targetCount) {
+      const segController = new AbortController();
+      abortRef.current = segController;
+      let segOut = "";
+
+      const segPrompt = `下面是日语/中文原文，以及它对应的译文（已分成 ${targetCount} 段，用空行分隔）。
+
+请把原文也切分成**恰好 ${targetCount} 段**，每段对应译文同序号那段的内容。
+
+严格要求：
+1. 不修改原文任何文字，只在合适位置插入空行
+2. 段落之间用一个空行分隔
+3. 输出**必须有且仅有 ${targetCount - 1} 个空行**
+4. 不要加任何前后说明、不要输出译文
+
+===SOURCE===
+${finalSource}
+
+===TRANSLATION===
+${finalTranslation}`;
+
+      await streamChat(
+        [{ role: "user", content: segPrompt }],
+        "segment",
+        {
+          onChunk: (c) => { segOut += c; },
+          onDone: () => {},
+          onError: () => { segOut = ""; },
+          signal: segController.signal,
+        }
+      );
+
+      const cleaned = segOut
+        .replace(/^===SOURCE===\n?/i, "")
+        .replace(/===TRANSLATION===[\s\S]*$/i, "")
+        .trim();
+      if (cleaned && countParagraphs(cleaned) === targetCount) {
+        finalSource = cleaned;
+      }
+    }
+
     setBusy(false);
     abortRef.current = null;
     setProgress(null);
-
-    // 解析输出
-    const transMatch = formatOut.match(/===TRANSLATION===\n([\s\S]*?)(?:===SOURCE===|$)/);
-    const srcMatch = formatOut.match(/===SOURCE===\n([\s\S]*?)$/);
-    const finalTranslation = transMatch ? transMatch[1].trim() : accumulated;
-    const finalSource = srcMatch ? srcMatch[1].trim() : source;
 
     patchActive({
       translation: finalTranslation,

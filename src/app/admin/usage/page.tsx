@@ -129,7 +129,7 @@ export default function AdminUsagePage() {
                     borderRadius: 10,
                     fontSize: 12,
                   }}
-                  formatter={(v: number) => [`${v}%`, "占比"]}
+                  formatter={(v) => [`${v ?? ""}%`, "占比"] as [string, string]}
                 />
                 <Bar
                   dataKey="value"
