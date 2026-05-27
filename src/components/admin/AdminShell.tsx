@@ -3,7 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, BarChart3, Activity, LogOut } from "lucide-react";
+import { LayoutDashboard, BarChart3, Activity, LogOut, Ticket } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { adminLogout, type AdminSession } from "@/lib/admin-auth";
 
@@ -52,6 +52,7 @@ const NAV: NavItem[] = [
   { href: "/admin", label: "总览", icon: <LayoutDashboard size={16} /> },
   { href: "/admin/usage", label: "功能使用分析", icon: <BarChart3 size={16} /> },
   { href: "/admin/api", label: "API 调用监控", icon: <Activity size={16} /> },
+  { href: "/admin/invites", label: "邀请码", icon: <Ticket size={16} /> },
 ];
 
 export function AdminShell({

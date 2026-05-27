@@ -12,13 +12,21 @@ export async function register(input: {
   email: string;
   nickname: string;
   password: string;
+  inviteCode: string;
 }): Promise<{ ok: true; session: Session } | { ok: false; error: string }> {
   const email = input.email.trim().toLowerCase();
   const nickname = input.nickname.trim();
   const password = input.password;
+  const inviteCode = input.inviteCode.trim().toUpperCase();
 
   if (!email || !nickname || !password) {
     return { ok: false, error: "请填写完整的邮箱、昵称和密码。" };
+  }
+  if (!inviteCode) {
+    return { ok: false, error: "请填写邀请码。" };
+  }
+  if (!/^HFX\d{4}$/.test(inviteCode)) {
+    return { ok: false, error: "邀请码格式不正确（应为 HFX 加 4 位数字，例如 HFX0001）。" };
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "邮箱格式不正确。" };
@@ -43,6 +51,19 @@ export async function register(input: {
     .insert({ id: userId, nickname });
   if (profileError) {
     return { ok: false, error: "保存昵称失败：" + profileError.message };
+  }
+
+  // 消费邀请码（服务端校验 + 占用 + 标记 profile.activated_at）
+  const consumeRes = await fetch("/api/invites/consume", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: inviteCode, userId }),
+  });
+  const consumeData = await consumeRes.json().catch(() => ({ ok: false, error: "网络错误" }));
+  if (!consumeData.ok) {
+    // 邀请码无效就清理刚创建的 auth 用户和 profile，避免脏数据
+    await supabase.auth.signOut();
+    return { ok: false, error: consumeData.error || "邀请码激活失败" };
   }
 
   return { ok: true, session: { email, nickname, userId } };
