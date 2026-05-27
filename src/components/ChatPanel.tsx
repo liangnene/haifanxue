@@ -20,6 +20,7 @@ import {
 import { ExamSelector } from "./ExamSelector";
 import { RestrictionGuide } from "./RestrictionGuide";
 import { TranslateAffordance } from "./TranslateAffordance";
+import { BrandMark } from "./BrandMark";
 import { GraduationCap, BookOpen as BookOpenIcon, X as XIcon } from "lucide-react";
 
 type Props = {
@@ -344,6 +345,7 @@ export function ChatPanel({ nickname, userKey }: Props) {
                   role={m.role}
                   content={m.content}
                   streaming={isStreaming}
+                  nickname={nickname}
                   translationCached={
                     canTranslate ? translations[m.content] : undefined
                   }
@@ -548,10 +550,39 @@ export function ChatPanel({ nickname, userKey }: Props) {
   );
 }
 
+function UserAvatar({ nickname }: { nickname: string }) {
+  const initial = (nickname?.trim()?.[0] || "U").toUpperCase();
+  return (
+    <div
+      className="shrink-0 w-8 h-8 rounded-full grid place-items-center text-white text-[13px] font-medium select-none"
+      style={{ background: "var(--accent)" }}
+      aria-hidden
+    >
+      {initial}
+    </div>
+  );
+}
+
+function AssistantAvatar() {
+  return (
+    <div
+      className="shrink-0 w-8 h-8 rounded-full grid place-items-center select-none"
+      style={{
+        background: "rgba(255,255,255,0.85)",
+        border: "1px solid var(--border)",
+      }}
+      aria-hidden
+    >
+      <BrandMark size={20} showWordmark={false} />
+    </div>
+  );
+}
+
 function MessageBubble({
   role,
   content,
   streaming,
+  nickname,
   translationCached,
   onTranslated,
   citations,
@@ -559,45 +590,53 @@ function MessageBubble({
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
+  nickname: string;
   translationCached?: string;
   onTranslated?: (translation: string) => void;
   citations?: Retrieved[];
 }) {
   const isUser = role === "user";
   return (
-    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
+    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+      {isUser ? <UserAvatar nickname={nickname} /> : <AssistantAvatar />}
       <div
-        className={`max-w-[88%] rounded-2xl px-4 py-3 text-[14.5px] leading-relaxed whitespace-pre-wrap break-words`}
-        style={{
-          background: isUser ? "var(--accent)" : "rgba(255, 255, 255, 0.85)",
-          color: isUser ? "#fff" : "var(--text)",
-          border: isUser ? "none" : "1px solid var(--border)",
-          backdropFilter: isUser ? "none" : "blur(8px)",
-          WebkitBackdropFilter: isUser ? "none" : "blur(8px)",
-        }}
+        className={`flex flex-col min-w-0 flex-1 ${
+          isUser ? "items-end" : "items-start"
+        }`}
       >
-        {content || (streaming ? "" : " ")}
-        {streaming && (
-          <span
-            className="inline-block w-[7px] h-[14px] align-[-2px] ml-0.5 animate-pulse"
-            style={{ background: "var(--text-muted)" }}
-          />
+        <div
+          className={`max-w-[88%] rounded-2xl px-4 py-3 text-[14.5px] leading-relaxed whitespace-pre-wrap break-words`}
+          style={{
+            background: isUser ? "var(--accent)" : "rgba(255, 255, 255, 0.85)",
+            color: isUser ? "#fff" : "var(--text)",
+            border: isUser ? "none" : "1px solid var(--border)",
+            backdropFilter: isUser ? "none" : "blur(8px)",
+            WebkitBackdropFilter: isUser ? "none" : "blur(8px)",
+          }}
+        >
+          {content || (streaming ? "" : " ")}
+          {streaming && (
+            <span
+              className="inline-block w-[7px] h-[14px] align-[-2px] ml-0.5 animate-pulse"
+              style={{ background: "var(--text-muted)" }}
+            />
+          )}
+        </div>
+        {!isUser && !streaming && citations && citations.length > 0 && (
+          <div className="max-w-[88%] w-full mt-2">
+            <CitationStrip citations={citations} />
+          </div>
+        )}
+        {!isUser && !streaming && onTranslated && (
+          <div className="max-w-[88%] w-full">
+            <TranslateAffordance
+              source={content}
+              cached={translationCached}
+              onTranslated={onTranslated}
+            />
+          </div>
         )}
       </div>
-      {!isUser && !streaming && citations && citations.length > 0 && (
-        <div className="max-w-[88%] w-full mt-2">
-          <CitationStrip citations={citations} />
-        </div>
-      )}
-      {!isUser && !streaming && onTranslated && (
-        <div className="max-w-[88%] w-full">
-          <TranslateAffordance
-            source={content}
-            cached={translationCached}
-            onTranslated={onTranslated}
-          />
-        </div>
-      )}
     </div>
   );
 }
